@@ -8,6 +8,7 @@
     + [Running on customized data](#running-on-customized-data)
   * [Train ConFit](#train-confit)
     + [customizing config files](#customizing-config-files)
+  * [GFP fluorescence workflow](#gfp-fluorescence-workflow)
 
 ## Overview
 
@@ -95,4 +96,47 @@ the test spearman will be generated in `results/$dataset/summary.csv`
 **GPU:** We trained ConFit using 4 A40. According to the GPU numbers you use, please modify **num_processes** and **gpu_number** respectively in `config/parallel_config.yaml` and `config/training_config.yaml`.
 
 **PLM**: We utilized ESM-1v as our PLM to be fine-tuned. Similar protein language models can also be used. Please modify **model** in `config/training_config.yaml` to ESM-2 or ESM-1b to change the PLM.
+
+## GFP fluorescence workflow
+
+The repository ships with a dedicated pipeline for the TAPE GFP fluorescence benchmark that is ready to run on four GPUs. The following steps assume the LMDB shards have already been downloaded and extracted.
+
+### 1. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Configure Accelerate for four GPUs
+
+Run the configuration utility once on the target machine and answer the prompts for a four-process, multi-GPU launch:
+
+```bash
+accelerate config
+```
+
+If you plan to enable Fully Sharded Data Parallel (FSDP), export `ACCELERATE_USE_FSDP=1` before launching the training job.
+
+### 3. Prepare the dataset directory
+
+Place the LMDB files from the fluorescence benchmark in a directory, e.g. `dataset/`:
+
+```
+dataset/
+├── fluorescence_train.lmdb
+├── fluorescence_valid.lmdb
+└── fluorescence_test.lmdb
+```
+
+### 4. Launch multi-GPU training and evaluation
+
+Start the pipeline with Accelerate, pointing to the provided configuration file and dataset directory:
+
+```bash
+accelerate launch --num_processes 4 --multi_gpu confit/train_gfp.py \
+    --config config/gfp_training.yaml \
+    --dataset_root dataset
+```
+
+The script fine-tunes the model on the training split, evaluates on the validation set to select the best checkpoint, and finally reports test-set results. Checkpoints are saved to `checkpoint/gfp/best_model`, and predictions for the held-out set are written to `predicted/gfp/gfp_predictions.csv` on the main process.
 
