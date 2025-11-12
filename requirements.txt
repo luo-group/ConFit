@@ -12,3 +12,4 @@ numpy
 pandas
 pyyaml
 biopython
+tape_proteins==0.5

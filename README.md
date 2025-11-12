@@ -107,6 +107,9 @@ The repository ships with a dedicated pipeline for the TAPE GFP fluorescence ben
 pip install -r requirements.txt
 ```
 
+The dependency list bundles the TAPE utilities (`tape_proteins`) required to read the LMDB splits. If the GPU-only bitsandbytes
+build is unavailable, the training script will automatically fall back to full-model fine-tuning instead of LoRA adapters.
+
 ### 2. Configure Accelerate for four GPUs
 
 Run the configuration utility once on the target machine and answer the prompts for a four-process, multi-GPU launch:

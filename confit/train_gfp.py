@@ -12,12 +12,21 @@ import pandas as pd
 import torch
 import yaml
 from accelerate import Accelerator
-from peft import LoraConfig, PeftModel, get_peft_model
-from peft.utils.other import fsdp_auto_wrap_policy
 from torch.utils.data import DataLoader
 from transformers import EsmForMaskedLM, EsmTokenizer
 
 from .gfp_data import GFPDataset, get_gfp_dfs
+
+
+try:  # pragma: no cover - optional dependency
+    from peft import LoraConfig, PeftModel, TaskType, get_peft_model
+    from peft.utils.other import fsdp_auto_wrap_policy
+
+    PEFT_AVAILABLE = True
+    PEFT_IMPORT_ERROR: Exception | None = None
+except (ImportError, ModuleNotFoundError) as exc:  # pragma: no cover - handled at runtime
+    PEFT_AVAILABLE = False
+    PEFT_IMPORT_ERROR = exc
 
 
 def bt_loss(scores: torch.Tensor, golden_score: torch.Tensor) -> torch.Tensor:
@@ -283,14 +292,27 @@ def main() -> None:
 
     base_model, teacher_model, tokenizer = load_model_and_tokenizer(model_name, model_seed)
 
-    lora_config = LoraConfig(
-        task_type="CAUSAL_LM",
-        r=int(config.get("lora_r", 8)),
-        lora_alpha=int(config.get("lora_alpha", 32)),
-        lora_dropout=float(config.get("lora_dropout", 0.1)),
-        target_modules=["query", "value"],
-    )
-    model = get_peft_model(base_model, lora_config)
+    use_lora = bool(config.get("use_lora", True))
+    if use_lora and not PEFT_AVAILABLE:
+        accelerator.print(
+            "LoRA requested but PEFT/bitsandbytes could not be imported. "
+            "Falling back to full-model fine-tuning."
+        )
+        if PEFT_IMPORT_ERROR is not None:
+            accelerator.print(f"PEFT import error: {PEFT_IMPORT_ERROR}")
+        use_lora = False
+
+    if use_lora:
+        lora_config = LoraConfig(
+            task_type=TaskType.MASKED_LM,
+            r=int(config.get("lora_r", 8)),
+            lora_alpha=int(config.get("lora_alpha", 32)),
+            lora_dropout=float(config.get("lora_dropout", 0.1)),
+            target_modules=config.get("lora_target_modules", ["q_proj", "v_proj"]),
+        )
+        model = get_peft_model(base_model, lora_config)
+    else:
+        model = base_model
 
     lr = float(config.get("ini_lr", 5e-4))
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -301,7 +323,7 @@ def main() -> None:
         eta_min=min_lr,
     )
 
-    if os.environ.get("ACCELERATE_USE_FSDP"):
+    if use_lora and PEFT_AVAILABLE and os.environ.get("ACCELERATE_USE_FSDP"):
         accelerator.state.fsdp_plugin.auto_wrap_policy = fsdp_auto_wrap_policy(model)
 
     global_batch_size = int(config.get("batch_size", 16))
@@ -364,8 +386,11 @@ def main() -> None:
     del model
     accelerator.free_memory()
 
-    base_model, _, tokenizer = load_model_and_tokenizer(model_name, model_seed)
-    model = PeftModel.from_pretrained(base_model, best_path)
+    if use_lora and PEFT_AVAILABLE:
+        base_model, _, tokenizer = load_model_and_tokenizer(model_name, model_seed)
+        model = PeftModel.from_pretrained(base_model, best_path)
+    else:
+        model = EsmForMaskedLM.from_pretrained(best_path)
     model = accelerator.prepare(model)
 
     test_sr, predictions = evaluate(
