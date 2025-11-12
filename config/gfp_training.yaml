@@ -1,0 +1,15 @@
+model: ESM-1b
+model_seed: 1
+batch_size: 16
+gpu_number: 4
+max_epochs: 15
+max_length: 512
+ini_lr: 5.0e-4
+min_lr: 1.0e-5
+lambda_reg: 0.1
+lora_r: 8
+lora_alpha: 32
+lora_dropout: 0.1
+seed: 42
+output_dir: checkpoint/gfp
+prediction_dir: predicted/gfp
