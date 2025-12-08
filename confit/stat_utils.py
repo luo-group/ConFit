@@ -60,7 +60,7 @@ def BT_loss(scores, golden_score):
     loss = torch.tensor(0.)
     loss = loss.cuda()
     for i in range(len(scores)):
-        for j in range(i, len(scores)):
+        for j in range(i+1, len(scores)):
             if golden_score[i] > golden_score[j]:
                 loss += torch.log(1+torch.exp(scores[j]-scores[i]))
             else:

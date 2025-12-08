@@ -21,8 +21,8 @@ class Mutation_Set(Dataset):
         for seq_record in SeqIO.parse(wt_path, "fasta"):
             wt = str(seq_record.seq)
         target = [wt]*len(self.data)
-        self.target, self.tgt_mask = tokenizer(target, padding='max_length', truncation=True,
-                                               max_length=self.seq_len).values()
+        self.target, self.tgt_mask = tokenizer(target, padding='max_length', truncation=False,
+                                              ).values()
         self.score = torch.tensor(np.array(self.data['log_fitness']))
         self.pid = np.asarray(data['PID'])
 
