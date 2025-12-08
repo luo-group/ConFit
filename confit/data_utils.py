@@ -14,14 +14,13 @@ class Mutation_Set(Dataset):
         self.data = data
         self.tokenizer = tokenizer
         self.seq_len = sep_len
-        self.seq, self.attention_mask = tokenizer(list(self.data['seq']), padding='max_length',
-                                                  truncation=True,
-                                                  max_length=self.seq_len).values()
+        self.seq, self.attention_mask = tokenizer(list(self.data['seq']), padding=False,
+                                                  truncation=False).values()
         wt_path = os.path.join('data', fname, 'wt.fasta')
         for seq_record in SeqIO.parse(wt_path, "fasta"):
             wt = str(seq_record.seq)
         target = [wt]*len(self.data)
-        self.target, self.tgt_mask = tokenizer(target, padding='max_length', truncation=False,
+        self.target, self.tgt_mask = tokenizer(target, padding=False, truncation=False,
                                               ).values()
         self.score = torch.tensor(np.array(self.data['log_fitness']))
         self.pid = np.asarray(data['PID'])
